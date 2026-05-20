@@ -12,7 +12,7 @@ This is not a prompt optimizer and not a full clarification agent. The first sta
 
 Ordinary LLM direct answering often assumes the user instruction is valid and complete. A clarification agent focuses on asking follow-up questions to reduce ambiguity. This project sits before both: **Instruction Diagnosis** checks whether the instruction itself is clear, accurate, and logically sound before answering.
 
-The long-term direction is **Socratic Requirement Refinement**, where the system can guide a user through multi-turn requirement repair. This repository only implements the first-stage single-turn diagnoser.
+The long-term direction is **Socratic Requirement Refinement**, where the system can guide a user through multi-turn requirement repair. Stage 1 provides the single-turn diagnoser. Stage 2 adds a lightweight multi-turn refinement loop that repairs the requirement, but still does not answer the user's final task.
 
 ## Structure
 
@@ -23,8 +23,16 @@ instruction_diagnosis/
   diagnoser.py
   schema.py
   cli.py
+  state.py
+  refiner_signature.py
+  refiner.py
+  controller.py
+  interactive_cli.py
 tests/
   test_diagnoser.py
+  test_refinement_state.py
+  test_refiner.py
+  test_controller.py
 README.md
 requirements.txt
 ```
@@ -77,6 +85,44 @@ python -m instruction_diagnosis.cli "我想做一个完全无监督且绝对准�
 ```
 
 The CLI prints valid JSON.
+
+## Stage 2: Socratic Requirement Refinement
+
+Stage 1 is single-turn **Instruction Diagnosis**: it inspects one `user_instruction` and returns a structured diagnosis.
+
+Stage 2 is multi-turn **Socratic Requirement Refinement**: it repeatedly diagnoses the current requirement, asks one focused clarification question or shows one revision suggestion, merges the user's clarification into a refined instruction, and diagnoses again.
+
+Stage 2 does not directly answer the user's final question. Its output is a clearer, more accurate, more executable `refined_instruction` that can later be passed to a normal answering agent.
+
+For experiment-design and method-comparison requests, Stage 2 treats missing method details, baselines, metrics, and experimental setup as blocking issues. User-defined method names such as `FedRAA`, `MyMethod`, `ProposedMethod`, or `Ours` are not assumed to be self-explanatory; the system should ask for the core mechanism or another key missing constraint instead of marking the requirement ready too early.
+
+Run the interactive CLI:
+
+```bash
+python -m instruction_diagnosis.interactive_cli
+```
+
+Example dialogue:
+
+```text
+用户：
+我想做一个完全无监督且绝对准确的LLM评测系统。
+
+系统：
+这个需求中“完全无监督”和“绝对准确”之间存在冲突。如果没有任何人工标注或外部参照，就很难定义并验证绝对准确。
+你是否允许使用少量人工标注的验证集来校准自动评测器？
+
+用户：
+可以，但希望人工成本尽量低。
+
+系统：
+修正后的需求：
+我想设计一个低人工成本的 LLM 自动评测系统，允许使用少量人工标注验证集进行校准，目标是在尽量减少人工标注成本的同时，提高自动评测结果与人工判断的一致性。
+
+当前需求已经足够清晰，可以进入正式回答阶段。
+```
+
+The Stage 2 flow is implemented without LangGraph, web UI, external tools, web search, long-term memory, or model training. It is intentionally a small controller around `InstructionDiagnoser` and `InstructionRefiner`.
 
 ## Python Usage
 
@@ -197,7 +243,7 @@ Expected behavior: `action = "revise"` and `issue_type = "conceptual_confusion"`
 
 ## Tests
 
-The tests do not call a real LLM. They use fake predictor outputs to verify schema validation, enum restrictions, JSON parsing, and diagnoser coercion.
+The tests do not call a real LLM. They use fake predictor outputs to verify schema validation, enum restrictions, JSON parsing, diagnoser coercion, refiner fallback behavior, and controller state transitions.
 
 ```bash
 pytest
@@ -205,12 +251,20 @@ pytest
 
 ## Extension Path
 
-To extend this into a LangGraph-based multi-turn **Socratic Requirement Refinement** flow later:
+Stage 3 can extend this prototype with:
+
+- LangGraph state machines.
+- Web-based fact verification.
+- External tool calls.
+- Long-term memory.
+- A Web UI.
+
+To migrate toward a LangGraph-based **Socratic Requirement Refinement** flow later:
 
 1. Keep `InstructionDiagnoser` as the first node.
-2. Route `answer` to the normal answer/execution node.
+2. Move the state transitions in `controller.py` into graph nodes and conditional edges.
 3. Route `clarify` to a user-question node that asks only the single most important question.
 4. Route `revise` to a requirement-rewrite node that proposes a repair and asks for confirmation.
 5. Store user answers and revised instructions in graph state, then re-run diagnosis until the instruction is answerable or the loop limit is reached.
 
-The current prototype deliberately avoids LangGraph and multi-turn memory so the diagnostic contract stays small and testable.
+The current Stage 2 prototype deliberately avoids LangGraph and long-term memory so the diagnostic and refinement contracts stay small and testable.

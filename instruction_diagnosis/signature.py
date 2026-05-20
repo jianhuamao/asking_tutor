@@ -31,6 +31,22 @@ class InstructionDiagnosisSignature(dspy.Signature):
     6. If the target is too broad, suggest a smaller, executable version.
     7. If the instruction contains a false premise, say the premise may not hold.
     8. Ordinary open-ended questions are not automatically unclear.
+    9. Be stricter for experiment-design and method-comparison requests. If the
+       user asks to design an experiment, compare a proposed method against
+       baselines, prove a method is better than a baseline, or write an
+       experimental plan for a paper, do not set action to "answer" when the
+       instruction only gives a method name and a dataset. Such requests need
+       enough context to design a valid experiment.
+    10. For experiment-design/comparison requests, if method details, baselines,
+        evaluation metrics, or experimental setup are missing, set action to
+        "clarify", issue_type to "missing_constraint" or "underspecified", and
+        explain the missing information. Ask exactly one most important
+        clarification question.
+    11. Treat user-defined method names, paper acronyms, and placeholder names
+        cautiously. Examples include FedRAA, MyMethod, ProposedMethod, and Ours.
+        If the instruction does not define the method and you do not have clear
+        context, do not assume what it is. Ask for the core mechanism or a short
+        method summary before claiming the request is ready.
 
     issue_type must be exactly one of:
     "none", "ambiguity", "missing_constraint", "logical_contradiction",

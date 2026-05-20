@@ -1,8 +1,9 @@
 import os
-import dspy
 
 
 def configure_dspy():
+    import dspy
+
     model = os.getenv("DSPY_MODEL", "openai/deepseek-chat")
     api_key = os.getenv("DSPY_API_KEY")
     api_base = os.getenv("DSPY_API_BASE", "https://api.deepseek.com/anthropic")
